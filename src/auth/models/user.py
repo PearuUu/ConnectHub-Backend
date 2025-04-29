@@ -1,14 +1,18 @@
-from datetime import datetime
 from typing import List, Optional
-from sqlalchemy import Column, Integer, String
+from typing import TYPE_CHECKING
+from sqlalchemy import Integer, String
 from sqlalchemy.orm import relationship, Mapped, mapped_column
+
 from src.models import Base
+
+if TYPE_CHECKING:
+    from auth.models.user_photo import UserPhoto
 
 
 class User(Base):
     __tablename__ = "users"
 
-    user_id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     login: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     password: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(100), unique=True, nullable=False)
@@ -38,4 +42,4 @@ class User(Base):
     #     foreign_keys="UserLiked.user_liked_id",
     #     back_populates="liked_user"
     # )
-    # photos: Mapped[List["UserPhoto"]] = relationship(back_populates="user")
+    photos: Mapped[List["UserPhoto"]] = relationship(back_populates="user")

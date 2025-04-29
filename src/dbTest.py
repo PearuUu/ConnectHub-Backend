@@ -1,12 +1,17 @@
 from src.database import engine, async_session
 from src.models import Base
-from src.auth.Models.user import User
+from src.auth.models.user import User
+from src.auth.models.user_photo import UserPhoto
+
 
 async def init_models():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all)
+        await conn.run_sync(Base.metadata.drop_all) 
+        #await conn.run_sync(Base.metadata.tables["user_photos"].drop)
+        #await conn.run_sync(Base.metadata.tables["users"].drop)
+        #print(Base.metadata.tables)
         await conn.run_sync(Base.metadata.create_all)
-        print("initialized")
+        print("Database reset complete")
     
 async def insertUser():
     async with async_session() as session:
@@ -17,7 +22,7 @@ async def insertUser():
             first_name="Test",
             last_name="User"
         )
-        
+
         session.add(test_user)
         try:
             await session.commit()
