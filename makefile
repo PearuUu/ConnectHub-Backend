@@ -1,10 +1,10 @@
 # ========================
 # Templates
 # ========================
-.PHONY: feature
+.PHONY: module
 
-feature:
-	cookiecutter templates/FeatureTemplate -o ./src
+module:
+	cookiecutter templates/ModuleTemplate -o ./src
 
 # ========================
 # Dev Commands
