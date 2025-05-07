@@ -3,10 +3,12 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Integer, String
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 
+
 from src.models import Base
 
 if TYPE_CHECKING:
     from user.models.user_photo import UserPhoto
+    from match.models.userLiked import UserLiked
 
 
 class User(Base):
@@ -32,14 +34,14 @@ class User(Base):
     #     foreign_keys="Message.user_id_to",
     #     back_populates="receiver"
     # )
-    # liked_users: Mapped[List["UserLiked"]] = relationship(
-    #     "UserLiked", 
-    #     foreign_keys="UserLiked.user_like_id",
-    #     back_populates="liking_user"
-    # )
-    # liked_by_users: Mapped[List["UserLiked"]] = relationship(
-    #     "UserLiked", 
-    #     foreign_keys="UserLiked.user_liked_id",
-    #     back_populates="liked_user"
-    # )
+    liked_users: Mapped[List["UserLiked"]] = relationship(
+        "UserLiked", 
+        foreign_keys="UserLiked.user_like_id",
+        back_populates="liking_user"
+    )
+    liked_by_users: Mapped[List["UserLiked"]] = relationship(
+        "UserLiked", 
+        foreign_keys="UserLiked.user_liked_id",
+        back_populates="liked_user"
+    )
     photos: Mapped[List["UserPhoto"]] = relationship(back_populates="user")
