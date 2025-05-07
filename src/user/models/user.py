@@ -6,7 +6,7 @@ from sqlalchemy.orm import relationship, Mapped, mapped_column
 from src.models import Base
 
 if TYPE_CHECKING:
-    from auth.models.user_photo import UserPhoto
+    from user.models.user_photo import UserPhoto
 
 
 class User(Base):
