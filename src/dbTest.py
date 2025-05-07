@@ -1,7 +1,9 @@
 from src.database import engine, async_session
 from src.models import Base
-from src.auth.models.user import User
-from src.auth.models.user_photo import UserPhoto
+from src.user.models.user import User
+from src.user.models.user_photo import UserPhoto
+from src.hobby.models.hobby import Hobby
+from src.hobby.models.category import Category
 
 
 async def init_models():
