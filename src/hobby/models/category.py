@@ -13,3 +13,6 @@ class Category(Base):
     name: Mapped[str] = mapped_column(nullable=False)
 
     hobbies: Mapped[List["Hobby"]] = relationship(back_populates="category")
+
+    def __repr__(self):
+        return f"<Category(id={self.id}, name={self.name})>"

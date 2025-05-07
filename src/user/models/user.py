@@ -9,6 +9,7 @@ from src.models import Base
 if TYPE_CHECKING:
     from user.models.user_photo import UserPhoto
     from match.models.userLiked import UserLiked
+    from messages.models.message import Message
 
 
 class User(Base):
@@ -24,16 +25,16 @@ class User(Base):
     
     # Relationships (lazy loaded by default)
     # hobbies: Mapped[List["UserHobby"]] = relationship(back_populates="user")
-    # sent_messages: Mapped[List["Message"]] = relationship(
-    #     "Message", 
-    #     foreign_keys="Message.user_id_from",
-    #     back_populates="sender"
-    # )
-    # received_messages: Mapped[List["Message"]] = relationship(
-    #     "Message", 
-    #     foreign_keys="Message.user_id_to",
-    #     back_populates="receiver"
-    # )
+    sent_messages: Mapped[List["Message"]] = relationship(
+        "Message", 
+        foreign_keys="Message.sender_id",
+        back_populates="sender"
+    )
+    received_messages: Mapped[List["Message"]] = relationship(
+        "Message", 
+        foreign_keys="Message.receiver_id",
+        back_populates="receiver"
+    )
     liked_users: Mapped[List["UserLiked"]] = relationship(
         "UserLiked", 
         foreign_keys="UserLiked.user_like_id",
@@ -45,3 +46,6 @@ class User(Base):
         back_populates="liked_user"
     )
     photos: Mapped[List["UserPhoto"]] = relationship(back_populates="user")
+
+    def __repr__(self):
+        return f"<User(id={self.id}, login={self.login}, email={self.email})>"

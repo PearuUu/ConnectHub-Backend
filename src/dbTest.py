@@ -5,6 +5,7 @@ from src.user.models.user_photo import UserPhoto
 from src.hobby.models.hobby import Hobby
 from src.hobby.models.category import Category
 from src.match.models.userLiked import UserLiked
+from src.messages.models.message import Message
 
 
 async def init_models():
