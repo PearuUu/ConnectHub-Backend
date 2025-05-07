@@ -37,13 +37,13 @@ class User(Base):
     )
     liked_users: Mapped[List["UserLiked"]] = relationship(
         "UserLiked", 
-        foreign_keys="UserLiked.user_like_id",
-        back_populates="liking_user"
+        foreign_keys="UserLiked.liker_id",
+        back_populates="liker"
     )
     liked_by_users: Mapped[List["UserLiked"]] = relationship(
         "UserLiked", 
-        foreign_keys="UserLiked.user_liked_id",
-        back_populates="liked_user"
+        foreign_keys="UserLiked.liked_id",
+        back_populates="liked"
     )
     photos: Mapped[List["UserPhoto"]] = relationship(back_populates="user")
 

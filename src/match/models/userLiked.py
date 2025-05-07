@@ -13,8 +13,8 @@ class UserLiked(Base):
     liker_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     liked_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
 
-    liker: Mapped["User"] = relationship(foreign_keys=[liker_id],back_populates="liked_users")
-    liked: Mapped["User"] = relationship(foreign_keys=[liked_id],back_populates="liked_by_users")
+    liker: Mapped["User"] = relationship(foreign_keys=[liker_id], back_populates="liked_users")
+    liked: Mapped["User"] = relationship(foreign_keys=[liked_id], back_populates="liked_by_users")
 
     def __repr__(self):
         return f"<UserLiked(liker_id={self.liker_id}, liked_id={self.liked_id})>"

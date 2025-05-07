@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 
-from src.dbTest import insertUser, init_models
+from src.dbTest import insertUser, init_models, insert_dummy_data, select_and_print_data, get_user_with_messages
 
 app = FastAPI()
 
@@ -9,6 +9,9 @@ app = FastAPI()
 async def on_startup():
 
     await init_models()
+    await insert_dummy_data()
+    await select_and_print_data()
+    await get_user_with_messages(1)
 
     print("Done")
 
