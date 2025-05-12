@@ -8,7 +8,7 @@ from src.match.models.userLiked import UserLiked
 from src.messages.models.message import Message
 from sqlalchemy.sql import text
 from sqlalchemy.future import select
-from sqlalchemy.orm import relationship, joinedload
+from sqlalchemy.orm import joinedload
 
 
 async def init_models():
