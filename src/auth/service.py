@@ -56,8 +56,29 @@ class AuthService:
                 user_id=new_user.id, email=new_user.email)
 
             return RegisterResponse.model_validate(response)
+        except exc.IntegrityError as e:
+            await db.rollback()
+            if "users_login_key" in str(e.orig):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Login already exists"
+                )
+            elif "users_email_key" in str(e.orig):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Email already exists"
+                )
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="Failed to register user"
+                )
         except exc.SQLAlchemyError as e:
-            raise e
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Database error: {e}"
+            )
         finally:
             if db.in_transaction():
                 await db.rollback()
