@@ -26,7 +26,7 @@ class AuthService:
         return pwd_context.verify(plain_password, hashed_password)
 
     @staticmethod
-    def _GenerateToken(data: dict, expires_delta: timedelta = timedelta(minutes=15)):
+    def _GenerateToken(data: dict, expires_delta: timedelta = timedelta(minutes=60)):
         to_encode = data.copy()
         expire = datetime.now(timezone.utc) + expires_delta
         to_encode.update({"exp": expire})
