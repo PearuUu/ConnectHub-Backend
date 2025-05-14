@@ -1,15 +1,15 @@
-from datetime import datetime, timedelta, timezone
+from xml.dom.domreg import registered
 from fastapi import HTTPException, status
-from jose import ExpiredSignatureError
+from src.auth.schemas.password import PasswordChange
 from src.config import settings
 from src.auth.schemas.token import TokenSchema
-from src.user.schemas.user import UserCreate
+from src.user.schemas.user import UserCreate, UserSchema
 from src.user.models.user import User
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import exc, select
 from src.auth.schemas.register import RegisterResponse
-from jose import jwt
+from src.auth.utils.util import AuthUtil
 
 
 pwd_context = CryptContext(schemes=["bcrypt"], bcrypt__rounds=12)
@@ -17,25 +17,10 @@ ALGORITHM = "HS256"
 
 
 class AuthService:
-    @staticmethod
-    def _HashPassword(password: str) -> str:
-        return pwd_context.hash(password)
-
-    @staticmethod
-    def _VerifyPassword(plain_password, hashed_password):
-        return pwd_context.verify(plain_password, hashed_password)
-
-    @staticmethod
-    def _GenerateToken(data: dict, expires_delta: timedelta = timedelta(minutes=60)):
-        to_encode = data.copy()
-        expire = datetime.now(timezone.utc) + expires_delta
-        to_encode.update({"exp": expire})
-        token = jwt.encode(to_encode, settings.JWT_SECRET_KEY, ALGORITHM)
-        return token
 
     @staticmethod
     async def register(db: AsyncSession, user: UserCreate) -> RegisterResponse:
-        hashed_password = AuthService._HashPassword(user.password)
+        hashed_password = AuthUtil.HashPassword(user.password)
 
         new_user = User(
             login=user.login,
@@ -89,13 +74,13 @@ class AuthService:
         result = await db.execute(user_query)
         user = result.scalar_one_or_none()
 
-        if not user or not AuthService._VerifyPassword(password, user.password):
+        if not user or not AuthUtil.VerifyPassword(password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid credentials"
             )
 
-        token = AuthService._GenerateToken({"id": str(user.id)})
+        token = AuthUtil.GenerateToken({"id": str(user.id)})
 
         result = TokenSchema(
             access_token=token,
@@ -103,3 +88,38 @@ class AuthService:
         )
 
         return result
+
+    @staticmethod
+    async def change_password(db: AsyncSession, user_id: int, password_change: PasswordChange) -> dict:
+        user_query = select(User).where(User.id == user_id)
+        result = await db.execute(user_query)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        if AuthUtil.VerifyPassword(password_change.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password can't be the same as the old password"
+            )
+
+        user.password = AuthUtil.HashPassword(password_change.password)
+        try:
+            await db.flush()
+            await db.commit()
+        except exc.SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to update password: {e}"
+            )
+
+        return {"message": "Password updated successfully"}
+
+    # TODO: Forgot password
+    # TODO: Change password
+    # TODO: Refresh token
+    # TODO: Logout
