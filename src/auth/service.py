@@ -1,5 +1,6 @@
 from xml.dom.domreg import registered
 from fastapi import HTTPException, status
+from src.auth.schemas import password
 from src.auth.schemas.password import PasswordChange
 from src.config import settings
 from src.auth.schemas.token import TokenSchema
@@ -100,7 +101,13 @@ class AuthService:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="User not found"
             )
-        if AuthUtil.VerifyPassword(password_change.password, user.password):
+        if not AuthUtil.VerifyPassword(password_change.current_password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Current password is incorrect"
+            )
+
+        elif AuthUtil.VerifyPassword(password_change.password, user.password):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="New password can't be the same as the old password"

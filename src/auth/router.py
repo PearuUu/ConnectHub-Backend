@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from src.auth.dependencies import get_token_data, TokenData
 from src.auth.schemas.register import RegisterResponse
 from src.database import get_db
 from src.auth.service import AuthService
@@ -31,14 +32,14 @@ async def register(user: UserCreate, db: AsyncSession = Depends(get_db)):
 
 @router.put("/change-password", response_model=dict)
 async def change_password(
-    user_id: int,
     password_change: PasswordChange,
+    token: TokenData = Depends(get_token_data),
     db: AsyncSession = Depends(get_db)
 ):
     """
     Endpoint to change the password of a user.
     """
     try:
-        return await AuthService.change_password(db, user_id, password_change)
+        return await AuthService.change_password(db, token.id, password_change)
     except HTTPException as e:
         raise e

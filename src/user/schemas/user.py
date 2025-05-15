@@ -1,7 +1,7 @@
 from pydantic import BaseModel, EmailStr, field_validator
 from typing import Optional, List
 
-from src.auth.schemas.password import PasswordChange
+from src.auth.schemas.password import PasswordBase, PasswordChange
 from .user_photo import UserPhotoSchema
 
 
@@ -20,7 +20,7 @@ class UserSchema(BaseModel):
     }
 
 
-class UserCreate(PasswordChange):
+class UserCreate(PasswordBase):
     login: str
     email: EmailStr
     phone_number: Optional[str]
