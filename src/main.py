@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from src.auth.router import router as auth_router
+from src.user.router import router as user_router
 from src.exceptions import sqlalchemy_exception_handler, generic_exception_handler
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -9,6 +10,7 @@ app = FastAPI()
 
 # Register the auth router
 app.include_router(auth_router)
+app.include_router(user_router)
 
 app.add_exception_handler(SQLAlchemyError, sqlalchemy_exception_handler)
 app.add_exception_handler(Exception, generic_exception_handler)
@@ -19,9 +21,6 @@ async def on_startup():
 
     await init_models()
     await insert_dummy_data()
-    #await select_and_print_data()
-    #await get_user_with_messages(1)
-
     print("Done")
 
 
