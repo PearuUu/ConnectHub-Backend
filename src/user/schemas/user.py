@@ -23,8 +23,6 @@ class UserSchema(BaseModel):
 class UserCreate(PasswordBase):
     login: str
     email: EmailStr
-    phone_number: Optional[str]
+    phone_number: Optional[str] = None  # Add default value of None
     first_name: str
     last_name: str
-
-    

@@ -9,3 +9,4 @@ pytest
 httpx
 cookiecutter
 python-jose
+pytest-asyncio
