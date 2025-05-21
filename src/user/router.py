@@ -15,19 +15,40 @@ router = APIRouter(
 )
 
 
-@router.get("/get-user", response_model=UserSchema)
+@router.get("/get", response_model=UserSchema)
 async def get_user(
     token: TokenData = Depends(get_token_data),
     db: AsyncSession = Depends(get_db)
 ):
-    """_summary_
-
-    Args:
-        token (TokenData, optional): _description_. Defaults to Depends(get_token_data).
-        db (AsyncSession, optional): _description_. Defaults to Depends(get_db).
+    """
+    Endpoint to get the authenticated user's details.
     """
     try:
         async with db:  # Ensure proper context management
             return await UserService.get_user(db, token.id)
     except HTTPException as e:
         raise e
+
+
+@router.put("/edit", response_model=UserSchema)
+async def edit_user(
+    user_data: UserSchema,
+    token: TokenData = Depends(get_token_data),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint to edit a user's details.
+    """
+    user_data.id = token.id  # Ensure the ID matches the authenticated user
+    return await UserService.edit_user(db, user_data)
+
+
+@router.delete("/delete", status_code=204)
+async def delete_user(
+    token: TokenData = Depends(get_token_data),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint to delete the authenticated user.
+    """
+    await UserService.delete_user(db, token.id)
