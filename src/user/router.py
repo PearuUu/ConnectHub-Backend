@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from src.database import get_db
 from src.auth.schemas.token_data import TokenData
 from src.auth.dependencies import get_token_data
-from src.user.schemas.user import UserSchema
+from src.user.schemas.user import UserSchema, UserSearch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.user.service import UserService
@@ -52,3 +52,15 @@ async def delete_user(
     Endpoint to delete the authenticated user.
     """
     await UserService.delete_user(db, token.id)
+
+
+@router.post("/search", response_model=list[UserSchema])
+async def search_user(
+    user_data: UserSearch,
+    db: AsyncSession = Depends(get_db),
+    token: TokenData = Depends(get_token_data)
+):
+    """
+    Endpoint to search for users by email or login.
+    """
+    return await UserService.search_user(db, user_data)

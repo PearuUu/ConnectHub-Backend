@@ -18,6 +18,19 @@ class UserSchema(BaseModel):
     }
 
 
+class UserSearch(BaseModel):
+    id: Optional[int] = None
+    login: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
 class UserCreate(PasswordBase):
     login: str
     email: EmailStr

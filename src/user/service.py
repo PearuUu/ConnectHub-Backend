@@ -1,9 +1,9 @@
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import exc, select, delete
+from sqlalchemy import exc, select, delete, or_
 from sqlalchemy.orm import selectinload
 from src.user.models.user import User
-from src.user.schemas.user import UserSchema
+from src.user.schemas.user import UserSchema, UserSearch
 
 
 class UserService:
@@ -72,4 +72,34 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while editing the user"
+            ) from e
+
+    @staticmethod
+    async def search_user(db: AsyncSession, user_data: UserSearch) -> list[UserSchema]:
+        try:
+            search_criteria = user_data.model_dump(exclude_unset=True)
+
+            if not search_criteria:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="At least one search criterion must be provided"
+                )
+
+            filters = [getattr(User, key) == value for key,
+                       value in search_criteria.items()]
+            user_query = select(User).where(*filters)
+            result = await db.execute(user_query)
+            users = result.scalars().all()
+
+            if not users:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No users found with the provided criteria"
+                )
+
+            return [UserSchema.model_validate(user) for user in users]
+        except exc.SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while searching for users"
             ) from e
