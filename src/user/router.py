@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from urllib import response
+from xml.sax import default_parser_list
+from fastapi import APIRouter, Depends, HTTPException, status
 
 from src.database import get_db
 from src.auth.schemas.token_data import TokenData
@@ -7,6 +9,7 @@ from src.user.schemas.user import UserSchema, UserSearch
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.user.service import UserService
+from src.user.schemas.user_photo import UserPhotoSchema
 
 
 router = APIRouter(
@@ -64,3 +67,31 @@ async def search_user(
     Endpoint to search for users by email or login.
     """
     return await UserService.search_user(db, user_data)
+
+
+@router.post("/photo/add", response_model=UserPhotoSchema)
+async def add_photo(
+    db: AsyncSession = Depends(get_db),
+    photo_url: str = "",
+    token: TokenData = Depends(get_token_data)
+
+):
+
+    if photo_url == "":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Photo url not provided"
+        )
+    return await UserService.add_photo(db, photo_url, token.id)
+
+
+@router.delete("/photo/delete/{photo_id}", status_code=204)
+async def delete_photo(
+    photo_id: int,
+    db: AsyncSession = Depends(get_db),
+    token: TokenData = Depends(get_token_data)
+):
+    """
+    Endpoint to delete a user's photo by its ID.
+    """
+    return await UserService.delete_photo(db, photo_id, token.id)

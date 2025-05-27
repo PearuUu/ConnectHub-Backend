@@ -1,9 +1,13 @@
-from fastapi import HTTPException, status
+from xmlrpc.client import UNSUPPORTED_ENCODING
+from fastapi import HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import exc, select, delete, or_
+from sqlalchemy import exc, insert, select, delete, or_
 from sqlalchemy.orm import selectinload
 from src.user.models.user import User
 from src.user.schemas.user import UserSchema, UserSearch
+from src.user.schemas.user_photo import UserPhotoSchema
+from src.user.utils.util import UserUtils
+from src.user.models.user_photo import UserPhoto
 
 
 class UserService:
@@ -13,7 +17,7 @@ class UserService:
         user_query = (
             select(User)
             .where(User.id == id)
-            .options(selectinload(User.photos))  # Eagerly load photos
+            .options(selectinload(User.photos))
         )
         result = await db.execute(user_query)
         user = result.scalar_one_or_none()
@@ -102,4 +106,52 @@ class UserService:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while searching for users"
+            ) from e
+
+    @staticmethod
+    async def add_photo(db: AsyncSession, photo_url: str, user_id: int) -> UserPhotoSchema:
+        try:
+            user_photo = UserPhoto(
+                user_id=user_id,
+                photo_url=photo_url
+            )
+            db.add(user_photo)
+            await db.flush()
+            await db.commit()
+            await db.refresh(user_photo)
+
+            result = UserPhotoSchema(
+                id=user_photo.id,
+                user_id=user_photo.user_id,
+                photo_url=user_photo.photo_url
+            )
+
+            return UserPhotoSchema.model_validate(result)
+
+        except exc.SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while adding the photo"
+            ) from e
+        
+
+    @staticmethod
+    async def delete_photo(db: AsyncSession, photo_id: int, user_id: int):
+        try:
+            query = delete(UserPhoto).where((UserPhoto.id == photo_id) and (UserPhoto.user_id == user_id) )
+            result = await db.execute(query)
+            await db.commit()
+
+            if result.rowcount == 0:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="User not found"
+                )
+            return result.rowcount
+        except exc.SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while adding the photo"
             ) from e
