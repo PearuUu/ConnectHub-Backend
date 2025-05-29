@@ -161,3 +161,14 @@ class HobbyService:
         except SQLAlchemyError as e:
             await self.db.rollback()
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
+        
+    async def search_hobbies(self, query: str) -> list[HobbySchema]:
+        try:
+            result = await self.db.execute(
+                select(Hobby)
+                .where(Hobby.name.ilike(f"%{query}%"))
+            )
+            hobbies = result.scalars().all()
+            return [HobbySchema.model_validate(hobby.__dict__) for hobby in hobbies]
+        except SQLAlchemyError as e:
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")

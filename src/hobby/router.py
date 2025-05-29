@@ -48,6 +48,14 @@ async def delete_user_hobbies(hobby_ids: list[int], token: TokenData = Depends(g
     service = HobbyService(db)
     return await service.delete_user_hobbies(token.id, hobby_ids)
 
+@router.get("/search", response_model=list[HobbySchema])
+async def search_hobbies(query: str, db: AsyncSession = Depends(get_db)):
+    """
+    Endpoint to search hobbies by name or category.
+    """
+    service = HobbyService(db)
+    return await service.search_hobbies(query)
+
 
 @router.get("/{hobby_id}", response_model=HobbySchema)
 async def get_hobby(hobby_id: int, db: AsyncSession = Depends(get_db)):
