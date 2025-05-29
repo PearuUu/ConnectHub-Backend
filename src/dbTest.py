@@ -71,8 +71,16 @@ async def insert_dummy_data():
             await session.flush()  # Ensure category ID is available for Hobby
 
             # Insert dummy data for Hobby
-            hobby = Hobby(name="Football", category_id=category.id)
-            session.add(hobby)
+            hobbies =[
+                 Hobby(name="Football", category_id=category.id),
+                 Hobby(name="Football2", category_id=category.id),
+                 Hobby(name="Football3", category_id=category.id),
+                 Hobby(name="Football4", category_id=category.id),
+                 Hobby(name="Football5", category_id=category.id),
+                 Hobby(name="Football6", category_id=category.id),
+                 Hobby(name="Football7", category_id=category.id),
+            ]
+            session.add_all(hobbies)
 
             # Insert dummy data for UserLiked
             user_liked = UserLiked(liker_id=user1.id, liked_id=user2.id)

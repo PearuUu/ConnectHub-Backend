@@ -119,3 +119,45 @@ class HobbyService:
         except SQLAlchemyError as e:
             await self.db.rollback()
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    async def edit_user_hobbies(self, user_id: int, hobby_ids: list[int]) -> dict:
+        try:
+            if user_id <= 0 or not hobby_ids or any(hobby_id <= 0 for hobby_id in hobby_ids):
+                raise HTTPException(
+                    status_code=400, detail="Invalid user or hobby IDs")
+
+            # Fetch existing hobbies for the user
+            existing_hobbies = await self.db.execute(
+                select(user_hobby_association.c.hobby_id).where(
+                    user_hobby_association.c.user_id == user_id
+                )
+            )
+            existing_hobby_ids = set(existing_hobbies.scalars().all())
+
+            # Determine hobbies to add and remove
+            hobbies_to_add = set(hobby_ids) - existing_hobby_ids
+            hobbies_to_remove = existing_hobby_ids - set(hobby_ids)
+
+            # Add new hobbies
+            if hobbies_to_add:
+                await self.db.execute(
+                    insert(user_hobby_association).values(
+                        [{"user_id": user_id, "hobby_id": hobby_id}
+                            for hobby_id in hobbies_to_add]
+                    )
+                )
+
+            # Remove old hobbies
+            if hobbies_to_remove:
+                await self.db.execute(
+                    delete(user_hobby_association).where(
+                        (user_hobby_association.c.user_id == user_id) &
+                        (user_hobby_association.c.hobby_id.in_(hobbies_to_remove))
+                    )
+                )
+
+            await self.db.commit()
+            return {"detail": "User hobbies updated successfully"}
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")

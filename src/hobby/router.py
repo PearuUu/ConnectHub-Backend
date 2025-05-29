@@ -31,13 +31,13 @@ async def add_user_hobbies(hobby_ids: list[int], token: TokenData = Depends(get_
     return await service.add_user_hobbies(token.id, hobby_ids)
 
 
-@router.put("/user/{hobby_id}", response_model=HobbySchema)
-async def edit_user_hobby(hobby_id: int, hobby_data: HobbySchema, token: TokenData = Depends(get_token_data), db: AsyncSession = Depends(get_db)):
+@router.put("/user", response_model=dict)
+async def edit_user_hobbies(hobby_ids: list[int],  token: TokenData = Depends(get_token_data), db: AsyncSession = Depends(get_db)):
     """
     Endpoint to edit a hobby for the authenticated user.
     """
     service = HobbyService(db)
-    return await service.edit_user_hobby(token.id, hobby_id, hobby_data)
+    return await service.edit_user_hobbies(token.id, hobby_ids)
 
 
 @router.delete("/user", response_model=dict)
