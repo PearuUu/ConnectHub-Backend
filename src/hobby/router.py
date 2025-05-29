@@ -13,32 +13,6 @@ router = APIRouter(
 )
 
 
-@router.get("/{hobby_id}", response_model=HobbySchema)
-async def get_hobby(hobby_id: int, db: AsyncSession = Depends(get_db)):
-    service = HobbyService(db)
-    return await service.get_hobby(hobby_id)
-
-# nie przypisuje nowego id w response
-
-
-@router.post("/", response_model=HobbySchema)
-async def create_hobby(hobby_data: HobbySchema, db: AsyncSession = Depends(get_db)):
-    service = HobbyService(db)
-    return await service.create_hobby(hobby_data)
-
-
-@router.put("/{hobby_id}", response_model=HobbySchema)
-async def update_hobby(hobby_id: int, hobby_data: HobbySchema, db: AsyncSession = Depends(get_db)):
-    service = HobbyService(db)
-    return await service.update_hobby(hobby_id, hobby_data)
-
-
-@router.delete("/{hobby_id}")
-async def delete_hobby(hobby_id: int, db: AsyncSession = Depends(get_db)):
-    service = HobbyService(db)
-    return await service.delete_hobby(hobby_id)
-
-
 @router.get("/user", response_model=list[HobbySchema])
 async def get_user_hobbies(token: TokenData = Depends(get_token_data), db: AsyncSession = Depends(get_db)):
     """
@@ -73,3 +47,26 @@ async def delete_user_hobbies(hobby_ids: list[int], token: TokenData = Depends(g
     """
     service = HobbyService(db)
     return await service.delete_user_hobbies(token.id, hobby_ids)
+
+
+@router.get("/{hobby_id}", response_model=HobbySchema)
+async def get_hobby(hobby_id: int, db: AsyncSession = Depends(get_db)):
+    service = HobbyService(db)
+    return await service.get_hobby(hobby_id)
+
+@router.post("/", response_model=HobbySchema)
+async def create_hobby(hobby_data: HobbySchema, db: AsyncSession = Depends(get_db)):
+    service = HobbyService(db)
+    return await service.create_hobby(hobby_data)
+
+
+@router.put("/{hobby_id}", response_model=HobbySchema)
+async def update_hobby(hobby_id: int, hobby_data: HobbySchema, db: AsyncSession = Depends(get_db)):
+    service = HobbyService(db)
+    return await service.update_hobby(hobby_id, hobby_data)
+
+
+@router.delete("/{hobby_id}")
+async def delete_hobby(hobby_id: int, db: AsyncSession = Depends(get_db)):
+    service = HobbyService(db)
+    return await service.delete_hobby(hobby_id)

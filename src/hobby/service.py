@@ -2,7 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
 from fastapi import HTTPException
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import SQLAlchemyError, IntegrityError
 from sqlalchemy import insert, delete
 from src.hobby.models.hobby import Hobby
 from src.hobby.schemas.hobby import HobbySchema
@@ -27,11 +27,20 @@ class HobbyService:
 
     async def create_hobby(self, hobby_data: HobbySchema) -> Hobby:
         try:
-            hobby = Hobby(**hobby_data.dict())
+            hobby = Hobby(**hobby_data.model_dump())
+            hobby.id = None
             self.db.add(hobby)
+            await self.db.flush()
             await self.db.commit()
             await self.db.refresh(hobby)
             return hobby
+        except IntegrityError as e:
+            if 'UniqueViolationError' in str(e.orig):
+                raise HTTPException(
+                    status_code=400, detail="Hobby name must be unique")
+            else:
+                raise HTTPException(
+                    status_code=400, detail=f"Integrity error occurred: {e}")
         except SQLAlchemyError as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
@@ -41,7 +50,8 @@ class HobbyService:
                 raise HTTPException(status_code=400, detail="Invalid hobby ID")
             hobby = await self.get_hobby(hobby_id)
             for key, value in hobby_data.dict().items():
-                setattr(hobby, key, value)
+                if key != "id":  # Ensure the ID field is not updated
+                    setattr(hobby, key, value)
             await self.db.commit()
             await self.db.refresh(hobby)
             return hobby
@@ -59,7 +69,7 @@ class HobbyService:
         except SQLAlchemyError as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
-    async def get_user_hobbies(self, user_id: int) -> list[Hobby]:
+    async def get_user_hobbies(self, user_id: int) -> list[HobbySchema]:
         try:
             if user_id <= 0:
                 raise HTTPException(status_code=400, detail="Invalid user ID")
@@ -68,7 +78,8 @@ class HobbyService:
                 .join(user_hobby_association, Hobby.id == user_hobby_association.c.hobby_id)
                 .where(user_hobby_association.c.user_id == user_id)
             )
-            return result.scalars().all()
+            hobbies = result.scalars().all()
+            return [HobbySchema.model_validate(hobby.__dict__) for hobby in hobbies]
         except SQLAlchemyError as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
 

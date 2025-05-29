@@ -1,7 +1,8 @@
+from git import Optional
 from pydantic import BaseModel
 
 class HobbySchema(BaseModel):
-    id: int
+    id: Optional[int] = None
     name: str
     category_id: int
 
