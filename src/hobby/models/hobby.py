@@ -9,10 +9,9 @@ if TYPE_CHECKING:
 user_hobby_association = Table(
     "user_hobby",
     Base.metadata,
-    Column("user_id", ForeignKey("users.id"), primary_key=True),
-    Column("hobby_id", ForeignKey("hobbies.id"), primary_key=True)
+    Column("user_id", ForeignKey("users.id", ondelete="CASCADE"), primary_key=True),
+    Column("hobby_id", ForeignKey("hobbies.id", ondelete="CASCADE"), primary_key=True)
 )
-
 
 class Hobby(Base):
     __tablename__ = "hobbies"

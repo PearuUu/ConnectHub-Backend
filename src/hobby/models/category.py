@@ -12,7 +12,7 @@ class Category(Base):
     id: Mapped[int] = mapped_column(primary_key=True, index=True)
     name: Mapped[str] = mapped_column(nullable=False)
 
-    hobbies: Mapped[List["Hobby"]] = relationship(back_populates="category")
+    hobbies: Mapped[List["Hobby"]] = relationship(back_populates="category", cascade="all, delete-orphan")
 
     def __repr__(self):
         return f"<Category(id={self.id}, name={self.name})>"

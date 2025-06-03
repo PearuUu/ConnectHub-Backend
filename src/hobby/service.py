@@ -1,11 +1,13 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError, IntegrityError
-from sqlalchemy import insert, delete
+from sqlalchemy import insert, delete, update
+from src.hobby.models.category import Category
+from src.hobby.schemas.category import CategorySchema, CategoryCreate
 from src.hobby.models.hobby import Hobby
-from src.hobby.schemas.hobby import HobbySchema
+from src.hobby.schemas.hobby import HobbySchema, HobbyCreate, HobbyUpdate
 from src.hobby.models.hobby import user_hobby_association
 
 
@@ -13,61 +15,68 @@ class HobbyService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def get_hobby(self, hobby_id: int) -> Hobby:
-        try:
-            if hobby_id <= 0:
-                raise HTTPException(status_code=400, detail="Invalid hobby ID")
-            result = await self.db.execute(select(Hobby).where(Hobby.id == hobby_id))
-            hobby = result.scalar_one_or_none()
-            if not hobby:
-                raise HTTPException(status_code=404, detail="Hobby not found")
-            return hobby
-        except SQLAlchemyError as e:
-            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    async def get_hobby(self, hobby_id: int) -> Hobby | None:
+        result = await self.db.execute(select(Hobby).where(Hobby.id == hobby_id))
+        return result.scalar_one_or_none()
 
-    async def create_hobby(self, hobby_data: HobbySchema) -> Hobby:
+    async def create_hobby(self, hobby_data: HobbyCreate) -> Hobby:
         try:
-            hobby = Hobby(**hobby_data.model_dump())
-            hobby.id = None
-            self.db.add(hobby)
-            await self.db.flush()
+            db_hobby = Hobby(**hobby_data.model_dump())
+            self.db.add(db_hobby)
             await self.db.commit()
-            await self.db.refresh(hobby)
-            return hobby
+            await self.db.refresh(db_hobby)
+            return db_hobby
         except IntegrityError as e:
-            if 'UniqueViolationError' in str(e.orig):
-                raise HTTPException(
-                    status_code=400, detail="Hobby name must be unique")
-            else:
-                raise HTTPException(
-                    status_code=400, detail=f"Integrity error occurred: {e}")
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Hobby already exists or invalid category_id.") from e
         except SQLAlchemyError as e:
-            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail="Could not create hobby.") from e
 
-    async def update_hobby(self, hobby_id: int, hobby_data: HobbySchema) -> Hobby:
-        try:
-            if hobby_id <= 0:
-                raise HTTPException(status_code=400, detail="Invalid hobby ID")
-            hobby = await self.get_hobby(hobby_id)
-            for key, value in hobby_data.dict().items():
-                if key != "id":  # Ensure the ID field is not updated
-                    setattr(hobby, key, value)
-            await self.db.commit()
-            await self.db.refresh(hobby)
-            return hobby
-        except SQLAlchemyError as e:
-            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+    async def update_hobby(self, hobby_id: int, hobby_data: HobbyUpdate) -> Hobby:
+        db_hobby = await self.get_hobby(hobby_id)
+        if not db_hobby:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Hobby not found")
 
-    async def delete_hobby(self, hobby_id: int) -> dict:
+        update_values = hobby_data.model_dump(exclude_unset=True)
+        if not update_values:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="No update data provided")
+
+        for key, value in update_values.items():
+            setattr(db_hobby, key, value)
+
         try:
-            if hobby_id <= 0:
-                raise HTTPException(status_code=400, detail="Invalid hobby ID")
-            hobby = await self.get_hobby(hobby_id)
-            await self.db.delete(hobby)
             await self.db.commit()
-            return {"detail": "Hobby deleted successfully"}
+            await self.db.refresh(db_hobby)
+            return db_hobby
+        except IntegrityError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail=f"Error updating hobby: {e.orig}") from e
         except SQLAlchemyError as e:
-            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail="Could not update hobby.") from e
+
+    async def delete_hobby(self, hobby_id: int) -> None:
+        db_hobby = await self.get_hobby(hobby_id)
+        if not db_hobby:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Hobby not found")
+        try:
+            await self.db.delete(db_hobby)
+            await self.db.commit()
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            if isinstance(e, IntegrityError):
+                raise HTTPException(status_code=status.HTTP_409_CONFLICT,
+                                    detail=f"Cannot delete hobby. It might be in use by users.") from e
+            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                                detail="Could not delete hobby.") from e
 
     async def get_user_hobbies(self, user_id: int) -> list[HobbySchema]:
         try:
@@ -126,7 +135,6 @@ class HobbyService:
                 raise HTTPException(
                     status_code=400, detail="Invalid user or hobby IDs")
 
-            # Fetch existing hobbies for the user
             existing_hobbies = await self.db.execute(
                 select(user_hobby_association.c.hobby_id).where(
                     user_hobby_association.c.user_id == user_id
@@ -134,11 +142,9 @@ class HobbyService:
             )
             existing_hobby_ids = set(existing_hobbies.scalars().all())
 
-            # Determine hobbies to add and remove
             hobbies_to_add = set(hobby_ids) - existing_hobby_ids
             hobbies_to_remove = existing_hobby_ids - set(hobby_ids)
 
-            # Add new hobbies
             if hobbies_to_add:
                 await self.db.execute(
                     insert(user_hobby_association).values(
@@ -147,7 +153,6 @@ class HobbyService:
                     )
                 )
 
-            # Remove old hobbies
             if hobbies_to_remove:
                 await self.db.execute(
                     delete(user_hobby_association).where(
@@ -161,7 +166,7 @@ class HobbyService:
         except SQLAlchemyError as e:
             await self.db.rollback()
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
-        
+
     async def search_hobbies(self, query: str) -> list[HobbySchema]:
         try:
             result = await self.db.execute(
@@ -171,4 +176,67 @@ class HobbyService:
             hobbies = result.scalars().all()
             return [HobbySchema.model_validate(hobby.__dict__) for hobby in hobbies]
         except SQLAlchemyError as e:
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    async def create_category(self, name: str) -> CategorySchema:
+        try:
+            category = Category(name=name)
+            self.db.add(category)
+            await self.db.commit()
+            await self.db.refresh(category)
+            return CategorySchema.model_validate(category.__dict__)
+        except IntegrityError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Category already exists") from e
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    async def get_all_categories(self) -> list[CategorySchema]:
+        try:
+            result = await self.db.execute(select(Category))
+            categories = result.scalars().all()
+            return [CategorySchema.model_validate(cat.__dict__) for cat in categories]
+        except SQLAlchemyError as e:
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    async def get_category(self, category_id: int) -> CategorySchema:
+        result = await self.db.execute(select(Category).where(Category.id == category_id))
+        category = result.scalar_one_or_none()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        return CategorySchema.model_validate(category.__dict__)
+
+    async def update_category(self, category_id: int, name: str) -> CategorySchema:
+        result = await self.db.execute(select(Category).where(Category.id == category_id))
+        category = result.scalar_one_or_none()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        category.name = name
+        try:
+            await self.db.commit()
+            await self.db.refresh(category)
+            return CategorySchema.model_validate(category.__dict__)
+        except IntegrityError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST,
+                                detail="Category name already exists") from e
+        except SQLAlchemyError as e:
+            await self.db.rollback()
+            raise HTTPException(status_code=500, detail=f"Database error: {e}")
+
+    async def delete_category(self, category_id: int) -> None:
+        result = await self.db.execute(select(Category).where(Category.id == category_id))
+        category = result.scalar_one_or_none()
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
+        try:
+            await self.db.delete(category)
+            await self.db.commit()
+        except SQLAlchemyError as e:
+            await self.db.rollback()
             raise HTTPException(status_code=500, detail=f"Database error: {e}")

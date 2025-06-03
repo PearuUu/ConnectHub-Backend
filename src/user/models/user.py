@@ -31,7 +31,8 @@ class User(Base):
     hobbies: Mapped[List["Hobby"]] = relationship(
         "Hobby",
         secondary=user_hobby_association,
-        lazy="select"
+        lazy="select",
+        passive_deletes=True
     )
     sent_messages: Mapped[List["Message"]] = relationship(
         "Message",

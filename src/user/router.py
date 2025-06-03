@@ -1,25 +1,27 @@
 from urllib import response
 from xml.sax import default_parser_list
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Response
 
 from src.database import get_db
 from src.auth.schemas.token_data import TokenData
 from src.auth.dependencies import get_token_data
-from src.user.schemas.user import UserSchema, UserSearch
+from src.user.schemas.user import UserSchema, UserSearch, UserUpdate
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.user.service import UserService
 from src.user.schemas.user_photo import UserPhotoSchema
 
-
+# Changed prefix to plural for consistency
 router = APIRouter(
-    prefix="/user",
-    tags=["user"]
+    prefix="/users",
+    tags=["users"]
 )
 
+# GET /users/me
 
-@router.get("/get", response_model=UserSchema)
-async def get_user(
+
+@router.get("/me", response_model=UserSchema)
+async def get_current_user(
     token: TokenData = Depends(get_token_data),
     db: AsyncSession = Depends(get_db)
 ):
@@ -27,27 +29,30 @@ async def get_user(
     Endpoint to get the authenticated user's details.
     """
     try:
-        async with db:  # Ensure proper context management
+        async with db:
             return await UserService.get_user(db, token.id)
     except HTTPException as e:
         raise e
 
+# PUT /users/me
 
-@router.put("/edit", response_model=UserSchema)
-async def edit_user(
-    user_data: UserSchema,
+
+@router.put("/me", response_model=UserSchema)
+async def edit_current_user(
+    user_data: UserUpdate,
     token: TokenData = Depends(get_token_data),
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Endpoint to edit a user's details.
+    Endpoint to edit the authenticated user's details.
     """
-    user_data.id = token.id  # Ensure the ID matches the authenticated user
-    return await UserService.edit_user(db, user_data)
+    return await UserService.edit_user(db, user_id=token.id, user_data=user_data)
+
+# DELETE /users/me
 
 
-@router.delete("/delete", status_code=204)
-async def delete_user(
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_current_user(
     token: TokenData = Depends(get_token_data),
     db: AsyncSession = Depends(get_db)
 ):
@@ -55,10 +60,13 @@ async def delete_user(
     Endpoint to delete the authenticated user.
     """
     await UserService.delete_user(db, token.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+# POST /users/search
 
 
 @router.post("/search", response_model=list[UserSchema])
-async def search_user(
+async def search_users(
     user_data: UserSearch,
     db: AsyncSession = Depends(get_db),
     token: TokenData = Depends(get_token_data)
@@ -68,15 +76,18 @@ async def search_user(
     """
     return await UserService.search_user(db, user_data)
 
+# POST /users/me/photo
 
-@router.post("/photo/add", response_model=UserPhotoSchema)
-async def add_photo(
+
+@router.post("/me/photo", response_model=UserPhotoSchema)
+async def add_photo_to_profile(
     db: AsyncSession = Depends(get_db),
     photo_url: str = "",
     token: TokenData = Depends(get_token_data)
-
 ):
-
+    """
+    Endpoint to add a photo to the authenticated user's profile.
+    """
     if photo_url == "":
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -84,9 +95,11 @@ async def add_photo(
         )
     return await UserService.add_photo(db, photo_url, token.id)
 
+# DELETE /users/me/photo/{photo_id}
 
-@router.delete("/photo/delete/{photo_id}", status_code=204)
-async def delete_photo(
+
+@router.delete("/me/photo/{photo_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_photo_from_profile(
     photo_id: int,
     db: AsyncSession = Depends(get_db),
     token: TokenData = Depends(get_token_data)
@@ -94,4 +107,5 @@ async def delete_photo(
     """
     Endpoint to delete a user's photo by its ID.
     """
-    return await UserService.delete_photo(db, photo_id, token.id)
+    await UserService.delete_photo(db, photo_id, token.id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

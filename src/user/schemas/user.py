@@ -12,6 +12,20 @@ class UserSchema(BaseModel):
     phone_number: Optional[str]
     first_name: str
     last_name: str
+    # Added to match service loading behavior
+    # photos: List[UserPhotoSchema] = []
+
+    model_config = {
+        "from_attributes": True
+    }
+
+
+class UserUpdate(BaseModel):
+    login: Optional[str] = None
+    email: Optional[EmailStr] = None
+    phone_number: Optional[str] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
     model_config = {
         "from_attributes": True
@@ -25,10 +39,6 @@ class UserSearch(BaseModel):
     phone_number: Optional[str] = None
     first_name: Optional[str] = None
     last_name: Optional[str] = None
-
-    model_config = {
-        "from_attributes": True
-    }
 
 
 class UserCreate(PasswordBase):

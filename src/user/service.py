@@ -4,7 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import exc, insert, select, delete, or_
 from sqlalchemy.orm import selectinload
 from src.user.models.user import User
-from src.user.schemas.user import UserSchema, UserSearch
+from src.user.schemas.user import UserSchema, UserSearch, UserUpdate
 from src.user.schemas.user_photo import UserPhotoSchema
 from src.user.utils.util import UserUtils
 from src.user.models.user_photo import UserPhoto
@@ -50,9 +50,9 @@ class UserService:
             ) from e
 
     @staticmethod
-    async def edit_user(db: AsyncSession, user_data: UserSchema) -> UserSchema:
+    async def edit_user(db: AsyncSession, user_id: int, user_data: UserUpdate) -> UserSchema:
         try:
-            user_query = select(User).where(User.id == user_data.id)
+            user_query = select(User).where(User.id == user_id)
             result = await db.execute(user_query)
             user = result.scalar_one_or_none()
 
@@ -62,7 +62,8 @@ class UserService:
                     detail="User not found"
                 )
 
-            for key, value in user_data.model_dump(exclude={"id"}, exclude_unset=True).items():
+            update_values = user_data.model_dump(exclude_unset=True)
+            for key, value in update_values.items():
                 if hasattr(user, key):
                     setattr(user, key, value)
 
@@ -89,8 +90,14 @@ class UserService:
                     detail="At least one search criterion must be provided"
                 )
 
-            filters = [getattr(User, key) == value for key,
-                       value in search_criteria.items()]
+            filters = []
+            for key, value in search_criteria.items():
+                column = getattr(User, key)
+                if isinstance(value, str):
+                    filters.append(column.ilike(f"%{value}%"))
+                else:
+                    filters.append(column == value)
+
             user_query = select(User).where(*filters)
             result = await db.execute(user_query)
             users = result.scalars().all()
@@ -134,12 +141,12 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while adding the photo"
             ) from e
-        
 
     @staticmethod
     async def delete_photo(db: AsyncSession, photo_id: int, user_id: int):
         try:
-            query = delete(UserPhoto).where((UserPhoto.id == photo_id) and (UserPhoto.user_id == user_id) )
+            query = delete(UserPhoto).where(
+                (UserPhoto.id == photo_id) and (UserPhoto.user_id == user_id))
             result = await db.execute(query)
             await db.commit()
 
