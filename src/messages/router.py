@@ -42,7 +42,7 @@ async def get_message_by_id(
     if not message:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND,
                             detail="Message not found or not authorized")
-    return MessageSchema.model_validate(message)
+    return MessageSchema.model_validate(message.__dict__)
 
 
 @router.put("/{message_id}", response_model=MessageSchema)

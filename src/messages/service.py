@@ -108,4 +108,4 @@ class MessageService:
             .offset(skip)
             .limit(limit)
         )
-        return [MessageSchema.model_validate(msg) for msg in messages.scalars().all()]
+        return [MessageSchema.model_validate(msg.__dict__) for msg in messages.scalars().all()]
