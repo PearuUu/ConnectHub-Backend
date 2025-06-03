@@ -101,9 +101,18 @@ async def insert_dummy_data(
 
         # Matches (UserLiked)
         user_ids = [u.id for u in users]
-        for _ in range(num_likes):
+        used_pairs = set()
+        attempts = 0
+        max_attempts = num_likes * 10  # Prevent infinite loop
+        added_likes = 0
+        while added_likes < num_likes and attempts < max_attempts:
             liker, liked = random.sample(user_ids, 2)
-            session.add(UserLiked(liker_id=liker, liked_id=liked))
+            pair = (liker, liked)
+            if pair not in used_pairs:
+                session.add(UserLiked(liker_id=liker, liked_id=liked))
+                used_pairs.add(pair)
+                added_likes += 1
+            attempts += 1
         await session.flush()
 
         # Messages
