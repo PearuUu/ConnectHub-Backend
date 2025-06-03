@@ -195,19 +195,31 @@ class HobbyService:
 
     async def get_all_categories(self) -> list[CategorySchema]:
         try:
-            result = await self.db.execute(select(Category))
-            categories = result.scalars().all()
-            return [CategorySchema.model_validate(cat.__dict__) for cat in categories]
+            result = await self.db.execute(select(Category).options(joinedload(Category.hobbies)))
+            categories = result.unique().scalars().all()
+            return [
+                CategorySchema.model_validate({
+                    **cat.__dict__,
+                    "hobbies": [HobbySchema.model_validate(hobby.__dict__) for hobby in cat.hobbies]
+                })
+                for cat in categories
+            ]
         except SQLAlchemyError as e:
             raise HTTPException(status_code=500, detail=f"Database error: {e}")
 
     async def get_category(self, category_id: int) -> CategorySchema:
-        result = await self.db.execute(select(Category).where(Category.id == category_id))
-        category = result.scalar_one_or_none()
+        result = await self.db.execute(
+            select(Category).options(joinedload(Category.hobbies)).where(
+                Category.id == category_id)
+        )
+        category = result.unique().scalar_one_or_none()
         if not category:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="Category not found")
-        return CategorySchema.model_validate(category.__dict__)
+        return CategorySchema.model_validate({
+            **category.__dict__,
+            "hobbies": [HobbySchema.model_validate(hobby.__dict__) for hobby in category.hobbies]
+        })
 
     async def update_category(self, category_id: int, name: str) -> CategorySchema:
         result = await self.db.execute(select(Category).where(Category.id == category_id))
