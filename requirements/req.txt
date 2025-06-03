@@ -10,3 +10,4 @@ httpx
 cookiecutter
 python-jose
 pytest-asyncio
+Faker
