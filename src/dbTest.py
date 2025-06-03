@@ -1,3 +1,4 @@
+from src.auth.service import AuthService
 from src.database import engine, async_session
 from src.models import Base
 from src.user.models.user import User
@@ -9,163 +10,120 @@ from src.messages.models.message import Message
 from sqlalchemy.sql import text
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload
+from src.user.service import UserService
+from src.hobby.models.hobby import user_hobby_association
+from src.hobby.service import HobbyService
+from src.user.schemas.user import UserCreate
+from src.hobby.schemas.hobby import HobbyCreate
+from src.hobby.schemas.category import CategoryCreate
+from src.user.schemas.user_photo import UserPhotoSchema
+from sqlalchemy import insert
+from faker import Faker
+import random
+from sqlalchemy import select
+
+fake = Faker()
 
 
 async def init_models():
     async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.drop_all) 
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
         print("Database reset complete")
-    
-async def insertUser():
+
+
+async def insert_dummy_data(
+    num_users: int = 10,
+    num_categories: int = 3,
+    hobbies_per_category: int = 5,
+    hobbies_per_user: int = 3,
+    num_messages: int = 20,
+    num_likes: int = 10,
+    photos_per_user: int = 2,
+):
     async with async_session() as session:
-        test_user = User(
-            login="test_user",
-            password="hashed_password_here",  # In production, hash this first!
-            email="test@example.com",
-            first_name="Test",
-            last_name="User"
-        )
-
-        session.add(test_user)
-        try:
-            await session.commit()
-            print(f"Successfully added user: {test_user.login}")
-            return test_user
-        except Exception as e:
-            await session.rollback()
-            print(f"Error adding user: {e}")
-            return None
-
-async def insert_dummy_data():
-    async with async_session() as session:
-        try:
-            # Insert dummy data for User
-            user1 = User(
-                login="user1",
-                password="hashed_password1",
-                email="user1@example.com",
-                first_name="John",
-                last_name="Doe",
-                phone_number="1234567890"
-            )
-            user2 = User(
-                login="user2",
-                password="hashed_password2",
-                email="user2@example.com",
-                first_name="Jane",
-                last_name="Smith",
-                phone_number="0987654321"
-            )
-            session.add_all([user1, user2])
-            await session.flush()  # Ensure IDs are available for related models
-
-            # Insert dummy data for UserPhoto
-            photo1 = UserPhoto(user_id=user1.id, photo_url="http://example.com/photo1.jpg")
-            photo2 = UserPhoto(user_id=user2.id, photo_url="http://example.com/photo2.jpg")
-            session.add_all([photo1, photo2])
-
-            # Insert dummy data for Category
-            category = Category(name="Sports")
+        # Categories
+        categories = []
+        for _ in range(num_categories):
+            category = Category(name=fake.unique.word().capitalize())
             session.add(category)
-            await session.flush()  # Ensure category ID is available for Hobby
+            categories.append(category)
+        await session.flush()
 
-            # Insert dummy data for Hobby
-            hobbies =[
-                 Hobby(name="Football", category_id=category.id),
-                 Hobby(name="Football2", category_id=category.id),
-                 Hobby(name="Football3", category_id=category.id),
-                 Hobby(name="Football4", category_id=category.id),
-                 Hobby(name="Football5", category_id=category.id),
-                 Hobby(name="Football6", category_id=category.id),
-                 Hobby(name="Football7", category_id=category.id),
-            ]
-            session.add_all(hobbies)
+        # Hobbies
+        hobbies = []
+        for category in categories:
+            for _ in range(hobbies_per_category):
+                hobby = Hobby(
+                    name=fake.unique.word().capitalize(),
+                    category_id=category.id
+                )
+                session.add(hobby)
+                hobbies.append(hobby)
+        await session.flush()
 
-            # Insert dummy data for UserLiked
-            user_liked = UserLiked(liker_id=user1.id, liked_id=user2.id)
-            session.add(user_liked)
+        # Users (use AuthService.register for hashing)
+        users = []
+        for _ in range(num_users):
+            user_data = UserCreate(
+                login=fake.unique.user_name(),
+                email=fake.unique.email(),
+                password="Password123#",
+                password_confirmation="Password123#",
+                phone_number=fake.phone_number()[:20],
+                first_name=fake.first_name(),
+                last_name=fake.last_name(),
+            )
+            await AuthService.register(session, user_data)
+        await session.flush()
+        users = (await session.execute(select(User))).scalars().all()
 
-            # Insert dummy data for Message
+        # User Photos
+        for user in users:
+            for _ in range(photos_per_user):
+                photo = UserPhoto(
+                    user_id=user.id,
+                    photo_url=fake.image_url()
+                )
+                session.add(photo)
+        await session.flush()
+
+        # User Hobbies
+        # Avoid accessing ORM attributes after flush/commit; fetch IDs directly from DB
+        hobby_ids = [row[0] for row in await session.execute(select(Hobby.id))]
+        for user in users:
+            selected_hobby_ids = random.sample(
+                hobby_ids, min(hobbies_per_user, len(hobby_ids)))
+            values = [{"user_id": user.id, "hobby_id": hobby_id}
+                      for hobby_id in selected_hobby_ids]
+            stmt = insert(user_hobby_association)
+            await session.execute(stmt.values(values))
+
+        # Matches (UserLiked)
+        user_ids = [u.id for u in users]
+        used_pairs = set()
+        attempts = 0
+        max_attempts = num_likes * 10  # Prevent infinite loop
+        added_likes = 0
+        while added_likes < num_likes and attempts < max_attempts:
+            liker, liked = random.sample(user_ids, 2)
+            pair = (liker, liked)
+            if pair not in used_pairs:
+                session.add(UserLiked(liker_id=liker, liked_id=liked))
+                used_pairs.add(pair)
+                added_likes += 1
+            attempts += 1
+        await session.flush()
+
+        # Messages
+        for _ in range(num_messages):
+            sender, receiver = random.sample(user_ids, 2)
             message = Message(
-                text="Hello, how are you?",
-                photo_url=None,
-                sender_id=user1.id,
-                receiver_id=user2.id
+                text=fake.sentence(),
+                sender_id=sender,
+                receiver_id=receiver,
+                photo_url=fake.image_url() if random.random() < 0.3 else None
             )
             session.add(message)
-
-            await session.commit()
-            print("Dummy data inserted successfully.")
-        except Exception as e:
-            await session.rollback()
-            print(f"Error inserting dummy data: {e}")
-
-async def select_and_print_data():
-    async with async_session() as session:
-        try:
-            # Fetch and print all users
-            users = await session.execute(text("SELECT * FROM users"))
-            print("Users:")
-            for row in users.fetchall():
-                print(row)
-
-            # Fetch and print all user photos
-            photos = await session.execute(text("SELECT * FROM user_photos"))
-            print("User Photos:")
-            for row in photos.fetchall():
-                print(row)
-
-            # Fetch and print all categories
-            categories = await session.execute(text("SELECT * FROM categories"))
-            print("Categories:")
-            for row in categories.fetchall():
-                print(row)
-
-            # Fetch and print all hobbies
-            hobbies = await session.execute(text("SELECT * FROM hobbies"))
-            print("Hobbies:")
-            for row in hobbies.fetchall():
-                print(row)
-
-            # Fetch and print all user likes
-            user_likes = await session.execute(text("SELECT * FROM user_likes"))
-            print("User Likes:")
-            for row in user_likes.fetchall():
-                print(row)
-
-            # Fetch and print all messages
-            messages = await session.execute(text("SELECT * FROM messages"))
-            print("Messages:")
-            for row in messages.fetchall():
-                print(row)
-        except Exception as e:
-            print(f"Error selecting data: {e}")
-
-async def get_user_with_messages(user_id: int):
-    async with async_session() as session:
-        try:
-            # Fetch the user object with related messages
-            result = await session.execute(
-                select(User)
-                .where(User.id == user_id)
-                .options(
-                    joinedload(User.sent_messages),  # Eagerly load sent messages
-                    joinedload(User.received_messages)  # Eagerly load received messages
-                )
-            )
-            user = result.scalars().first()
-
-            if user:
-                print(f"User: {user}")
-                print("Sent Messages:")
-                for message in user.sent_messages:
-                    print(message)
-                print("Received Messages:")
-                for message in user.received_messages:
-                    print(message)
-            else:
-                print(f"No user found with ID {user_id}")
-        except Exception as e:
-            print(f"Error fetching user: {e}")
-
+        await session.commit()
+        print(f"Inserted {num_users} users, {num_categories} categories, {len(hobbies)} hobbies, {num_messages} messages, {num_likes} likes, and photos.")
