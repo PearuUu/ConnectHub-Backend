@@ -1,14 +1,15 @@
 from xml.dom.domreg import registered
 from fastapi import HTTPException, status
+from pydantic import EmailStr
 from src.auth.schemas import password
-from src.auth.schemas.password import PasswordChange
+from src.auth.schemas.password import PasswordBase, PasswordChange
 from src.config import settings
 from src.auth.schemas.token import TokenSchema
 from src.user.schemas.user import UserCreate, UserSchema
 from src.user.models.user import User
 from passlib.context import CryptContext
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import exc, select
+from sqlalchemy import Boolean, exc, select
 from src.auth.schemas.register import RegisterResponse
 from src.auth.utils.util import AuthUtil
 
@@ -126,7 +127,51 @@ class AuthService:
 
         return {"message": "Password updated successfully"}
 
-    # TODO: Forgot password
-    # TODO: Change password
-    # TODO: Refresh token
-    # TODO: Logout
+    @staticmethod
+    async def check_email(db: AsyncSession, email: EmailStr) -> int:
+        query = select(User).where(User.email == email)
+        result = await db.execute(query)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User with provided email does not exists"
+            )
+
+        return user.id
+
+    @staticmethod
+    async def forgot_password(db: AsyncSession, user_id: int, passwords: PasswordBase):
+        user_query = select(User).where(User.id == user_id)
+        result = await db.execute(user_query)
+        user = result.scalar_one_or_none()
+
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        elif AuthUtil.VerifyPassword(passwords.password, user.password):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="New password can't be the same as the old password"
+            )
+
+        user.password = AuthUtil.HashPassword(passwords.password)
+        try:
+            await db.flush()
+            await db.commit()
+        except exc.SQLAlchemyError as e:
+            await db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to recover password: {e}"
+            )
+
+        return {"message": "Password recovered successfully"}
+
+        # TODO: Forgot password
+        # TODO: Change password
+        # TODO: Refresh token
+        # TODO: Logout
