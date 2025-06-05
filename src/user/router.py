@@ -18,22 +18,6 @@ router = APIRouter(
 )
 
 
-@router.get("/{user_id}", response_model=UserSchema)
-async def get_user(
-    user_id: int,
-    token: TokenData = Depends(get_token_data),
-    db: AsyncSession = Depends(get_db)
-):
-    """
-    Endpoint to get the user's details.
-    """
-    try:
-        async with db:
-            return await UserService.get_user(db, user_id)
-    except HTTPException as e:
-        raise e
-
-
 # GET /users/me
 
 
@@ -127,3 +111,18 @@ async def delete_photo_from_profile(
     await UserService.delete_photo(db, photo_id, token.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+
+@router.get("/{user_id}", response_model=UserSchema)
+async def get_user(
+    user_id: int,
+    token: TokenData = Depends(get_token_data),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Endpoint to get the user's details.
+    """
+    try:
+        async with db:
+            return await UserService.get_user(db, user_id)
+    except HTTPException as e:
+        raise e
