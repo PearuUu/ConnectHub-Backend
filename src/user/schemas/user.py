@@ -9,11 +9,12 @@ class UserSchema(BaseModel):
     id: int
     login: str
     email: EmailStr
-    phone_number: Optional[str]
+    phone_number: Optional[str] = None
     first_name: str
     last_name: str
     # Added to match service loading behavior
-    # photos: List[UserPhotoSchema] = []
+    
+    profile_photo: Optional[UserPhotoSchema] = None
 
     model_config = {
         "from_attributes": True
@@ -44,6 +45,6 @@ class UserSearch(BaseModel):
 class UserCreate(PasswordBase):
     login: str
     email: EmailStr
-    phone_number: Optional[str] = None  # Add default value of None
+    phone_number: Optional[str] = None
     first_name: str
     last_name: str

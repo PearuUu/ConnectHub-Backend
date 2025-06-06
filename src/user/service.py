@@ -17,7 +17,7 @@ class UserService:
         user_query = (
             select(User)
             .where(User.id == id)
-            .options(selectinload(User.photos))
+            .options(selectinload(User.profile_photo))
         )
         result = await db.execute(user_query)
         user = result.scalar_one_or_none()
@@ -28,7 +28,13 @@ class UserService:
                 detail="User not found"
             )
 
-        return UserSchema.model_validate(user)
+        user_dict = user.__dict__
+        user_dict["profile_photo"] = (
+            UserPhotoSchema.model_validate(user.profile_photo.__dict__)
+            if user.profile_photo else None
+        )
+
+        return UserSchema.model_validate(user_dict)
 
     @staticmethod
     async def delete_user(db: AsyncSession, id: int) -> int:
@@ -52,7 +58,7 @@ class UserService:
     @staticmethod
     async def edit_user(db: AsyncSession, user_id: int, user_data: UserUpdate) -> UserSchema:
         try:
-            user_query = select(User).where(User.id == user_id)
+            user_query = select(User).where(User.id == user_id).options(selectinload(User.profile_photo))
             result = await db.execute(user_query)
             user = result.scalar_one_or_none()
 
@@ -71,7 +77,13 @@ class UserService:
             await db.commit()
             await db.refresh(user)
 
-            return UserSchema.model_validate(user)
+            user_dict = user.__dict__
+            user_dict["profile_photo"] = (
+                UserPhotoSchema.model_validate(user.profile_photo.__dict__)
+                if user.profile_photo else None
+            )
+
+            return UserSchema.model_validate(user_dict)
         except exc.SQLAlchemyError as e:
             await db.rollback()
             raise HTTPException(
@@ -98,7 +110,7 @@ class UserService:
                 else:
                     filters.append(column == value)
 
-            user_query = select(User).where(*filters)
+            user_query = select(User).where(*filters).options(selectinload(User.profile_photo))
             result = await db.execute(user_query)
             users = result.scalars().all()
 
@@ -107,12 +119,37 @@ class UserService:
                     status_code=status.HTTP_404_NOT_FOUND,
                     detail="No users found with the provided criteria"
                 )
+            
+            user_dicts = [user.__dict__ for user in users]
+            for i in range(len(user_dicts)):
+                user_dicts[i]["profile_photo"] = (
+                UserPhotoSchema.model_validate(users[i].profile_photo.__dict__)
+                if users[i].profile_photo else None
+                )
 
-            return [UserSchema.model_validate(user) for user in users]
+            return [UserSchema.model_validate(dict) for dict in user_dicts]
         except exc.SQLAlchemyError as e:
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while searching for users"
+            ) from e
+
+    @staticmethod
+    async def get_user_photos(db: AsyncSession, user_id: int) -> list[UserPhotoSchema]:
+        try:
+            query = select(UserPhoto).where(UserPhoto.user_id == user_id)
+            result = await db.execute(query)
+            photos = result.scalars().all()
+            if not photos:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="No photos found for this user"
+                )
+            return [UserPhotoSchema.model_validate(photo.__dict__) for photo in photos]
+        except exc.SQLAlchemyError as e:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="An error occurred while fetching photos"
             ) from e
 
     @staticmethod
@@ -162,3 +199,45 @@ class UserService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="An error occurred while adding the photo"
             ) from e
+
+    @staticmethod
+    async def set_profile_photo(db: AsyncSession, user_id: int, photo_id: int) -> UserSchema:
+        user_query = select(User).where(User.id == user_id)
+        result = await db.execute(user_query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        # Check that the photo belongs to the user
+        photo_query = select(UserPhoto).where(
+            UserPhoto.id == photo_id, UserPhoto.user_id == user_id)
+        photo_result = await db.execute(photo_query)
+        photo = photo_result.scalar_one_or_none()
+        if not photo:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Photo not found or does not belong to user"
+            )
+        user.profile_photo_id = photo_id
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return await UserService.get_user(db, user_id)
+
+    @staticmethod
+    async def remove_profile_photo(db: AsyncSession, user_id: int) -> UserSchema:
+        user_query = select(User).where(User.id == user_id)
+        result = await db.execute(user_query)
+        user = result.scalar_one_or_none()
+        if not user:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="User not found"
+            )
+        user.profile_photo_id = None
+        db.add(user)
+        await db.commit()
+        await db.refresh(user)
+        return await UserService.get_user(db, user_id)

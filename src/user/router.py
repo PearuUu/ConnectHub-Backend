@@ -1,6 +1,6 @@
 from urllib import response
 from xml.sax import default_parser_list
-from fastapi import APIRouter, Depends, HTTPException, status, Response
+from fastapi import APIRouter, Depends, HTTPException, status, Response, Body
 
 from src.database import get_db
 from src.auth.schemas.token_data import TokenData
@@ -77,6 +77,20 @@ async def search_users(
     """
     return await UserService.search_user(db, user_data)
 
+@router.get("/photo/{user_id}", response_model=list[UserPhotoSchema])
+async def get_user_photos(
+    user_id: int,
+    db: AsyncSession = Depends(get_db),
+    token: TokenData = Depends(get_token_data)
+):
+    return await UserService.get_user_photos(db, user_id)
+
+@router.get("/me/photo", response_model=list[UserPhotoSchema])
+async def get_current_user_photos(
+    db: AsyncSession = Depends(get_db),
+    token: TokenData = Depends(get_token_data)
+):
+    return await UserService.get_user_photos(db, token.id)
 # POST /users/me/photo
 
 
@@ -111,6 +125,33 @@ async def delete_photo_from_profile(
     await UserService.delete_photo(db, photo_id, token.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
+# PUT /users/me/profile-photo
+
+
+@router.put("/me/profile-photo", response_model=UserSchema)
+async def set_profile_photo(
+    photo_id: int = Body(..., embed=True),
+    token: TokenData = Depends(get_token_data),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Set the authenticated user's profile photo by photo_id.
+    """
+    return await UserService.set_profile_photo(db, user_id=token.id, photo_id=photo_id)
+
+# DELETE /users/me/profile-photo
+
+
+@router.delete("/me/profile-photo", response_model=UserSchema)
+async def remove_profile_photo(
+    token: TokenData = Depends(get_token_data),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Remove the authenticated user's profile photo.
+    """
+    return await UserService.remove_profile_photo(db, user_id=token.id)
+
 
 @router.get("/{user_id}", response_model=UserSchema)
 async def get_user(
@@ -126,3 +167,5 @@ async def get_user(
             return await UserService.get_user(db, user_id)
     except HTTPException as e:
         raise e
+    
+
