@@ -11,3 +11,4 @@ cookiecutter
 python-jose
 pytest-asyncio
 Faker
+asyncpg
