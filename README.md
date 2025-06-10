@@ -9,12 +9,7 @@ ConnectHub-Backend to serwerowa część aplikacji służącej do zarządzania u
 
 ## Instalacja
 
-1. Sklonuj repozytorium:
-   ```
-   git clone https://github.com/twoj-uzytkownik/ConnectHub-Backend.git
-   cd ConnectHub-Backend
-   ```
-2. Zainstaluj zależności:
+1. Zainstaluj zależności:
    ```
    pip install -r requirements.txt
    ```
